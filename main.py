@@ -4,8 +4,9 @@ import pygame
 from gtts import gTTS
 import speech_recognition as sr
 import openai
+import taipy as tp
 
-# Custom OpenAI class
+# custom OpenAI class
 class OpenAI:
     def __init__(self, api_key):
         openai.api_key = api_key
@@ -17,30 +18,27 @@ class OpenAI:
         )
         return response
 
-# Initialize OpenAI with your API key
+# initialize with openai key
 api_key = 'sk-proj-bHgxM433ykB0nj2rVtApT3BlbkFJwb30IgttvYKnBYsyjcTc'
 client = OpenAI(api_key=api_key)
 
-# Language for text-to-speech
 lang = 'en'
 
-# Initialize pygame
 pygame.init()
-pygame.mixer.init()  # Initialize the mixer module
+pygame.mixer.init()
 
-# Set up the display
+# display
 width, height = 400, 300
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Voice Assistant")
 
-# Colors
+
 WHITE = (255, 255, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 
-# Font
+# font
 font = pygame.font.Font(None, 36)
-
 
 def draw_text(text, color, surface, x, y):
     textobj = font.render(text, True, color)
@@ -48,13 +46,39 @@ def draw_text(text, color, surface, x, y):
     textrect.center = (x, y)
     surface.blit(textobj, textrect)
 
-
 def save_audio_file(audio):
     filename = f"input_{int(time.time())}.wav"
     with open(filename, "wb") as f:
         f.write(audio.get_wav_data())
     return filename
 
+def process_audio(audio_file):
+    print(f"Processing audio file: {audio_file}")
+    return audio_file
+
+def generate_text_response(audio_file):
+    print(f"Generating text response for: {audio_file}")
+    # convert audio file to text
+    r = sr.Recognizer()
+    with sr.AudioFile(audio_file) as source:
+        audio_data = r.record(source)
+        said = r.recognize_google(audio_data)
+
+    # get response from gpt
+    response = client.chat_completion(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": said}]
+    )
+    text = response.choices[0].message.content
+    print(f"GPT-3.5 Response: {text}")
+    return text
+
+def text_to_speech(text):
+    print(f"Converting text to speech: {text}")
+    response_filename = f"response_{int(time.time())}.mp3"
+    speech = gTTS(text=text, lang=lang, slow=False, tld="com.au")
+    speech.save(response_filename)
+    return response_filename
 
 def get_audio():
     r = sr.Recognizer()
@@ -64,56 +88,31 @@ def get_audio():
         said = ""
 
         try:
-            # Save the recorded audio to a file
+            # save audio to file
             audio_filename = save_audio_file(audio)
             print(f"Audio saved to {audio_filename}")
 
-            # Convert audio file to text
-            with sr.AudioFile(audio_filename) as source:
-                audio_data = r.record(source)
-                said = r.recognize_google(audio_data)
-                print(f"Recognized: {said}")
+            # process audio file
+            processed_audio = process_audio(audio_filename)
 
-            if "shivraj" in said.lower():
-                print("Keyword detected: shivraj")
+            # generate text response
+            text = generate_text_response(processed_audio)
 
-                # Request response from GPT-3.5
-                response = client.chat_completion(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": said}]
-                )
-                text = response['choices'][0]['message']['content']
-                print(f"GPT-3.5 Response: {text}")
+            # convert text to speech and save
+            response_filename = text_to_speech(text)
 
-                if text:
-                    # Save response as an audio file
-                    response_filename = f"response_{int(time.time())}.mp3"
-                    speech = gTTS(text=text, lang=lang, slow=False, tld="com.au")
-                    speech.save(response_filename)
-                    print(f"Response saved to {response_filename}")
+            # load and play the audio response
+            pygame.mixer.music.load(response_filename)
+            pygame.mixer.music.play()
 
-                    # Play the saved audio file using pygame
-                    pygame.mixer.music.load(response_filename)
-                    pygame.mixer.music.play()
+            # display the response text on the screen
+            screen.fill(WHITE)
+            draw_text("Response: " + text, GREEN, screen, width // 2, height // 2)
+            pygame.display.flip()
 
-                    # Display the response text on the screen
-                    screen.fill(WHITE)
-                    draw_text("Response: " + text, GREEN, screen, width // 2, height // 2)
-                    pygame.display.flip()
-
-                    # Wait until the sound finishes playing
-                    while pygame.mixer.music.get_busy():
-                        pygame.time.Clock().tick(10)
-
-                else:
-                    print("Empty response from GPT-3.5.")
-                    screen.fill(WHITE)
-                    draw_text("Error: No response from GPT-3.5", RED, screen, width // 2, height // 2)
-                    pygame.display.flip()
-
-            elif "stop" in said.lower():
-                print("Stopping the loop.")
-                return None
+            # wait until the sound finishes playing
+            while pygame.mixer.music.get_busy():
+                pygame.time.Clock().tick(10)
 
         except sr.UnknownValueError:
             print("Google Speech Recognition could not understand audio.")
@@ -138,8 +137,6 @@ def get_audio():
 
     return said
 
-
-# Main loop
 running = True
 while running:
     for event in pygame.event.get():
@@ -150,6 +147,6 @@ while running:
     if result is None:
         running = False
 
-    time.sleep(1)  # Add a delay to avoid rapid looping
+    time.sleep(1) 
 
 pygame.quit()
