@@ -147,6 +147,6 @@ while running:
     if result is None:
         running = False
 
-    time.sleep(1) 
+    time.sleep(1)
 
 pygame.quit()
